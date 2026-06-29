@@ -177,9 +177,8 @@ export class GameEngine {
     if (!this.isAwaitingChoice) return;
 
     this.isAwaitingChoice = false;
-    this.timerEngine.stop();
-
     const reactionTime = this.timerEngine.getReactionTime();
+    this.timerEngine.stop();
     const currentRound = this.roundManager.getCurrentRound();
     const question = currentRound.question;
 
