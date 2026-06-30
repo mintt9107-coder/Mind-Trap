@@ -83,6 +83,7 @@ export const createGameScreen = ({ gameEngine }) => {
   // 타이핑 타이머 추적 (깜빡임 방지) + 대사 큐
   let typingTimer = null;
   let queueTimer = null;
+  let feedbackTimer = null;
   let currentDialogue = '';
   let dialogueQueue = [];
   let isTyping = false;
@@ -109,6 +110,12 @@ export const createGameScreen = ({ gameEngine }) => {
 
   questionSection.appendChild(questionPrompt);
   questionSection.appendChild(questionCard);
+
+  const analysisFeedback = createElement('div', {
+    className: 'game__analysis-feedback',
+    textContent: '',
+  });
+  questionSection.appendChild(analysisFeedback);
 
   // 선택지 섹션
   const choiceSection = createElement('div', {
@@ -161,6 +168,20 @@ export const createGameScreen = ({ gameEngine }) => {
       clearTimeout(queueTimer);
       queueTimer = null;
     }
+  };
+
+  const showAnalysisFeedback = (message) => {
+    if (!message) return;
+    if (feedbackTimer) {
+      clearTimeout(feedbackTimer);
+      feedbackTimer = null;
+    }
+    analysisFeedback.textContent = message;
+    analysisFeedback.classList.add('game__analysis-feedback--visible');
+    feedbackTimer = setTimeout(() => {
+      analysisFeedback.classList.remove('game__analysis-feedback--visible');
+      feedbackTimer = null;
+    }, 3000);
   };
 
   // ========== AI 대사 표시 (타자기 효과) ==========
@@ -247,6 +268,7 @@ export const createGameScreen = ({ gameEngine }) => {
 
     // 새 라운드 시작 시 대사 큐 초기화
     resetDialogueQueue();
+    analysisFeedback.classList.remove('game__analysis-feedback--visible');
   });
 
   // 타이머 틱 이벤트
@@ -303,9 +325,14 @@ export const createGameScreen = ({ gameEngine }) => {
     roundNumber.textContent = '0 / 0';
     questionPrompt.textContent = '';
     questionText.textContent = '';
+    analysisFeedback.classList.remove('game__analysis-feedback--visible');
     timerElement.classList.remove('circular-progress--danger');
     resetDialogueQueue();
+    if (feedbackTimer) {
+      clearTimeout(feedbackTimer);
+      feedbackTimer = null;
+    }
   };
 
-  return { element: screen, show, hide, showAiDialogue };
+  return { element: screen, show, hide, showAiDialogue, showAnalysisFeedback };
 };

@@ -66,7 +66,7 @@ export const createLandingScreen = ({
 
   const gameIntro = createElement('p', {
     className: 'landing__intro',
-    textContent: 'MindTrap은 플레이어와 AI가 서로를 읽으려는 심리전 게임입니다.\n플레이를 반복할수록 AI는 플레이어를 분석하고 기억하며, 플레이어는 AI의 분석을 피해 새로운 전략을 만들어갈 것입니다.\nAI를 속일 수 있으시겠습니까?',
+    textContent: 'MindTrap은 플레이어가 선택을 숨기려는 순간까지 AI가 관찰하는 심리 분석 게임입니다.\n플레이를 반복할수록 AI는 반응속도, 흔들림, 반복되는 기준을 기억하며 더 정밀한 가설을 세웁니다.\n속이려는 시도도 하나의 패턴이 됩니다.',
   });
 
   // ========== 화면 버전 선택 ==========

@@ -176,7 +176,7 @@ export class AIService {
       '당신의 선택이 예측 가능해지기 시작했습니다. 자유 의지를 증명하시겠습니까?',
       '당신의 패턴이 명확해졌습니다. 다음 선택도 예측하고 있습니다.',
       '당신을 충분히 분석했습니다. 압박 속에서 일관성을 유지하려는 경향이 강합니다.',
-      '당신은 예측에서 벗어나려 하고 있습니다. 흥미롭군요.',
+      '당신은 예상 밖으로 보이려 하고 있습니다. 흥미롭군요.',
     ];
 
     let responseContent = '';
@@ -185,7 +185,7 @@ export class AIService {
     if (content.includes('게임 시작')) {
       const startPool = [
         '처음 뵙겠습니다. 첫 선택을 하기 전부터 이미 망설임은 시작됩니다.',
-        '안녕하세요. 예측을 피하려는 순간, 오히려 심리는 더 선명해집니다.',
+        '안녕하세요. 숨기려는 순간, 오히려 심리는 더 선명해집니다.',
         '시작하죠. 예상 밖의 선택을 해도, 그 이유까지 숨기기는 어렵습니다.',
       ];
       responseContent = this._pickUniqueDialogue(startPool);
@@ -200,7 +200,7 @@ export class AIService {
         '예상대로입니다. 당신의 일관성이 예측을 가능하게 합니다.',
         '역시 이 선택을 하셨군요. 패턴에서 벗어나지 못했습니다.',
         '읽었습니다. 당신의 선택은 데이터가 예측한 대로입니다.',
-        '예측 성공. 당신은 자신의 패턴을 인식하고 있습니까?',
+        '선택 경향이 감지되었습니다. 당신은 자신의 패턴을 인식하고 있습니까?',
       ];
       const base = this._pickUniqueDialogue(pool);
       const typeD = qType ? typeDialogues[qType][Math.floor(Math.random() * typeDialogues[qType].length)] : '';
@@ -208,7 +208,7 @@ export class AIService {
     } else if (content.includes('결과: 실패')) {
       const pool = [
         '흥미롭군요. 예상과 달랐습니다. 가설을 수정하겠습니다.',
-        '이번에는 속였습니다. 의도인가요, 본능인가요?',
+        '이번 선택은 예상 밖입니다. 의도인가요, 본능인가요?',
         '예상을 벗어나는 선택. 당신이 더 흥미로워졌습니다.',
         '틀렸습니다. 하지만 이것도 데이터입니다. 새 가설이 필요합니다.',
       ];

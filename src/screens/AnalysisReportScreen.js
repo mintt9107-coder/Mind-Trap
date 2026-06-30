@@ -61,7 +61,7 @@ export const createAnalysisReportScreen = ({
         children: [
           createElement('span', {
             className: 'analysis-report__metric-label',
-            textContent: 'AI 예측 성공률',
+            textContent: '분석 일치도',
           }),
           createElement('div', {
             className: 'analysis-report__metric-value',

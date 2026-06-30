@@ -220,7 +220,7 @@ export class GameEngine {
       if (this.roundManager.isGameComplete()) {
         setTimeout(() => this._endGame(), 500);
       } else {
-        setTimeout(() => this._startNextRound(), 300);
+        setTimeout(() => this._startNextRound(), 1800);
       }
       return;
     }
@@ -278,7 +278,7 @@ export class GameEngine {
     if (this.roundManager.isGameComplete()) {
       setTimeout(() => this._endGame(), 500);
     } else {
-      setTimeout(() => this._startNextRound(), 300);
+      setTimeout(() => this._startNextRound(), 1800);
     }
   }
 
@@ -330,7 +330,7 @@ export class GameEngine {
       if (this.roundManager.isGameComplete()) {
         setTimeout(() => this._endGame(), 500);
       } else {
-        setTimeout(() => this._startNextRound(), 300);
+        setTimeout(() => this._startNextRound(), 1800);
       }
       return;
     }
@@ -370,7 +370,7 @@ export class GameEngine {
     if (this.roundManager.isGameComplete()) {
       setTimeout(() => this._endGame(), 500);
     } else {
-      setTimeout(() => this._startNextRound(), 300);
+      setTimeout(() => this._startNextRound(), 1800);
     }
   }
 

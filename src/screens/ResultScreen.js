@@ -378,12 +378,59 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
     className: 'result__profile-title',
     textContent: '분석 중...',
   });
+  profileTitle.style.display = 'none';
 
   // 통계 메시지
   const resultMessage = createElement('p', {
     className: 'result__message',
-    textContent: 'AI가 당신을 분석했습니다.',
+    textContent: '숨기려던 선택까지 분석에 포함되었습니다.',
   });
+
+  const summaryCard = createElement('section', {
+    className: 'result__summary-card glass',
+  });
+
+  const summaryEyebrow = createElement('span', {
+    className: 'result__summary-eyebrow',
+    textContent: 'AI가 읽어낸 요약',
+  });
+
+  const summaryType = createElement('h2', {
+    className: 'result__summary-type',
+    textContent: '분석 요약을 준비 중입니다.',
+  });
+
+  const summaryMetric = createElement('p', {
+    className: 'result__summary-metric',
+    textContent: '위험 성향 --% / 패턴 반복성 --% / 심리전 대응 --%',
+  });
+
+  const summaryJobs = createElement('p', {
+    className: 'result__summary-jobs',
+    textContent: '추천 직업: 분석 중',
+  });
+
+  summaryCard.appendChild(summaryEyebrow);
+  summaryCard.appendChild(summaryType);
+  summaryCard.appendChild(summaryMetric);
+  summaryCard.appendChild(summaryJobs);
+
+  const signalCard = createElement('section', {
+    className: 'result__signal-card glass',
+  });
+
+  const signalTitle = createElement('h2', {
+    className: 'result__signal-title',
+    textContent: 'AI가 읽어낸 핵심 신호',
+  });
+
+  const signalText = createElement('p', {
+    className: 'result__signal-text',
+    textContent: 'AI는 선택보다 선택을 숨기려는 방식에 주목했습니다.',
+  });
+
+  signalCard.appendChild(signalTitle);
+  signalCard.appendChild(signalText);
 
   // 통계 카드 섹션
   const statsSection = createElement('div', {
@@ -491,6 +538,9 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
   // 유저 프로필 데이터
   let playerProfile = null;
 
+  // 결과 요약 카드 데이터
+  let summaryCardData = null;
+
   // 프로필 액션 버튼 (저장/공유)
   const profileActionSection = createElement('div', {
     className: 'result__profile-actions',
@@ -552,6 +602,8 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
   const renderAiReport = (report) => {
     // 기존 내용 초기화
     analysisGraphContainer.innerHTML = '';
+    analysisGraphContainer.appendChild(summaryCard);
+    analysisGraphContainer.appendChild(signalCard);
 
     if (!report) {
       analysisGraphContainer.appendChild(loadingText);
@@ -573,7 +625,12 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
     analysisTitle.textContent = '🤖 AI Analysis Report';
 
     parsed.sections
-      .filter((section) => !['플레이어 타입', '선택 변화 시점', 'AI를 가장 많이 속인 순간'].includes(section.key))
+      .filter((section) => ![
+        '핵심 한줄평',
+        '플레이어 타입',
+        '선택 변화 시점',
+        'AI를 가장 많이 속인 순간',
+      ].includes(section.key))
       .forEach((section) => {
       analysisGraphContainer.appendChild(createAnalysisGraphItem(section));
       });
@@ -606,6 +663,19 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
     aiReport = report;
     // 결과 화면이 이미 보이고 있으면 즉시 업데이트
     renderAiReport(report);
+  };
+
+  /**
+   * 결과 상단 요약 카드 설정
+   * @param {Object} summary - { typeTitle, metricLine, jobLine, aiReadLine }
+   */
+  const setSummaryCard = (summary) => {
+    summaryCardData = summary || null;
+    if (!summaryCardData) return;
+    summaryType.textContent = summaryCardData.typeTitle || 'AI가 당신의 선택 흐름을 분석했습니다.';
+    summaryMetric.textContent = summaryCardData.metricLine || '위험 성향 --% / 패턴 반복성 --% / 심리전 대응 --%';
+    summaryJobs.textContent = summaryCardData.jobLine || '추천 직업: 분석 중';
+    signalText.textContent = summaryCardData.aiReadLine || 'AI는 선택보다 선택을 숨기려는 방식에 주목했습니다.';
   };
 
   /**
@@ -679,7 +749,7 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
    * @private
    */
   const _shareProfile = async () => {
-    if (!aiReport && !playerProfile) {
+    if (!aiReport && !playerProfile && !summaryCardData) {
       alert('아직 프로필이 생성되지 않았습니다.');
       return;
     }
@@ -725,11 +795,19 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
    * @private
    */
   const _buildShareText = () => {
-    if (!aiReport && !playerProfile) return '';
+    if (!aiReport && !playerProfile && !summaryCardData) return '';
 
     const lines = [];
-    lines.push('🧠 MindTrap - AI 행동 분석 프로필');
+    lines.push('MindTrap - AI 심리 분석 결과');
     lines.push('');
+
+    if (summaryCardData) {
+      lines.push(summaryCardData.typeTitle);
+      lines.push(summaryCardData.metricLine);
+      lines.push(summaryCardData.aiReadLine);
+      lines.push(summaryCardData.jobLine);
+      lines.push('');
+    }
 
     const parsed = parseAiReport(aiReport || '');
     if (parsed && parsed.sections.length > 0) {
@@ -737,17 +815,16 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
       lines.push('');
 
       parsed.sections
-        .filter((section) => !['플레이어 타입', '선택 변화 시점', 'AI를 가장 많이 속인 순간'].includes(section.key))
+        .filter((section) => ![
+          '핵심 한줄평',
+          '플레이어 타입',
+          '선택 변화 시점',
+          'AI를 가장 많이 속인 순간',
+        ].includes(section.key))
         .forEach((section) => {
           const value = section.key.includes('반응 시간')
             ? simplifyReactionTimeText(section.value.replace(/\s+/g, ' ').trim())
             : section.value.replace(/\s+/g, ' ').trim();
-
-          if (section.key.includes('핵심 한줄평')) {
-            lines.push(`"${cleanAnalysisDetail(value, section.percent)}"`);
-            lines.push('');
-            return;
-          }
 
           lines.push(`${section.key}: ${cleanAnalysisDetail(value, section.percent)}`);
           lines.push('');
@@ -757,7 +834,7 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
       lines.push('');
       lines.push(`분석 대상: ${playerProfile.userName}`);
       lines.push(`플레이어 타입: ${playerProfile.playerType}`);
-      lines.push(`AI 예측 성공률: ${playerProfile.predictionAccuracy}%`);
+      lines.push(`분석 일치도: ${playerProfile.predictionAccuracy}%`);
       lines.push('');
     }
 
@@ -792,6 +869,7 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
     hide,
     update,
     setAiReport,
+    setSummaryCard,
     setProfileTitle,
     setPlayerProfile,
     setJobRecommendation,

@@ -95,10 +95,18 @@ export class MindTrap {
 
     // 유저 선택은 학습에만 반영합니다. 게임 중 AI 대사는 라운드당 1회만 노출합니다.
     this.gameEngine.addEventListener(GAME_EVENTS.CHOICE_MADE, (roundData) => {
+      const feedback = this.aiEngine.evaluateRoundResult(roundData);
+      if (feedback?.feedback) {
+        this.screens.game.showAnalysisFeedback(feedback.feedback);
+      }
       this.aiEngine.onRoundEnd(roundData);
     });
 
     this.gameEngine.addEventListener(GAME_EVENTS.TIME_EXPIRED, (roundData) => {
+      const feedback = this.aiEngine.evaluateRoundResult(roundData);
+      if (feedback?.feedback) {
+        this.screens.game.showAnalysisFeedback(feedback.feedback);
+      }
       this.aiEngine.onRoundEnd(roundData);
     });
 
@@ -109,6 +117,9 @@ export class MindTrap {
         if (report) {
           this.screens.result.setAiReport(report);
         }
+
+        const summaryCard = this.aiEngine.getResultSummaryCard(report || '');
+        this.screens.result.setSummaryCard(summaryCard);
 
         // 행동 분석 기반 프로필 제목 + 유저 프로필 전달
         const profileTitle = this.aiEngine.getProfileTitle();

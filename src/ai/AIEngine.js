@@ -41,6 +41,9 @@ export class AIEngine {
 
     /** @type {Object|null} 마지막 예측 */
     this.lastPrediction = null;
+
+    /** @type {Array} 라운드별 분석 일치 기록 */
+    this.predictionRecords = [];
   }
 
   /**
@@ -53,6 +56,7 @@ export class AIEngine {
     this.dialogueHistory = [];
     this.lastDialogue = null;
     this.lastPrediction = null;
+    this.predictionRecords = [];
     this.isActive = true;
   }
 
@@ -313,7 +317,7 @@ export class AIEngine {
       risk: [
         `이번엔 "${predictedText || '한쪽 선택'}"에 끌릴 겁니다, 아니라면 일부러 비틀어보세요.`,
         '위험을 고르든 피하든, 이제 저는 그 이유 쪽을 보고 있습니다.',
-        '예측을 피하려는 선택도 위험 계산의 일부로 보입니다.',
+        '예상 밖으로 보이려는 선택도 위험 계산의 일부로 보입니다.',
         `${playerName}을 읽는 건 선택보다 선택을 바꾸는 순간이 더 쉽습니다.`,
       ],
       reward: [
@@ -437,6 +441,66 @@ export class AIEngine {
     }
 
     return learningResult;
+  }
+
+  /**
+   * 라운드 선택 결과와 직전 예측을 비교해 사용자에게 보여줄 분석 피드백을 생성합니다.
+   * 내부적으로는 예측 성공/실패를 기록하지만, UI에는 승패가 아닌 신호/가설 언어로 노출합니다.
+   * @param {Object} roundData - 라운드 데이터
+   * @returns {Object|null} 분석 피드백
+   */
+  evaluateRoundResult(roundData) {
+    if (!this.isActive || !roundData) return null;
+
+    const prediction = this.lastPrediction;
+    const isFourChoice = Boolean(roundData.question?.isFourChoice);
+    const canCompare = prediction && !isFourChoice
+      && (roundData.choice === 'primary' || roundData.choice === 'secondary');
+    const wasCorrect = canCompare ? prediction.prediction === roundData.choice : null;
+    const feedback = this._buildAnalysisFeedback(roundData, wasCorrect);
+
+    const record = {
+      round: roundData.round,
+      prediction: prediction?.prediction || null,
+      actualChoice: roundData.choice,
+      wasCorrect,
+      changedChoice: Boolean(roundData.changedChoice),
+      timeOut: Boolean(roundData.timeOut),
+      reactionTime: roundData.reactionTime || 0,
+      feedback,
+      timestamp: Date.now(),
+    };
+
+    this.predictionRecords.push(record);
+    return record;
+  }
+
+  _buildAnalysisFeedback(roundData, wasCorrect) {
+    if (roundData.timeOut) {
+      return '망설임과 결정 지연이 주요 신호로 기록되었습니다.';
+    }
+
+    if (roundData.changedChoice) {
+      return '바꾸려는 시도도 분석에 포함됩니다.';
+    }
+
+    if (roundData.reactionTime > 0 && roundData.reactionTime < 1100) {
+      return '빠른 결정 속도에서 직관적 판단 경향이 감지되었습니다.';
+    }
+
+    if (roundData.reactionTime > 3200) {
+      return '속도를 늦춘 순간이 기록되었습니다.';
+    }
+
+    if (wasCorrect === true) {
+      return '방금 선택은 이전 패턴과 일치합니다.';
+    }
+
+    if (wasCorrect === false) {
+      return '예상 밖의 선택입니다. 가설을 수정합니다.';
+    }
+
+    return '새로운 선택 신호가 기록되었습니다.';
   }
 
   /**
@@ -686,6 +750,80 @@ export class AIEngine {
   }
 
   /**
+   * 결과 화면 상단에 표시할 강한 요약 카드 데이터 생성
+   * @param {string} [report=''] - 최종 리포트
+   * @returns {Object}
+   */
+  getResultSummaryCard(report = '') {
+    const playerSnapshot = this.learningEngine.getPlayerSnapshot();
+    const analysis = this.behaviorAnalyzer.analyze(
+      playerSnapshot,
+      null,
+      this.learningJournal
+    );
+    const userName = this.memory.getUserName();
+    const attrs = playerSnapshot.attributes;
+    const typeTitle = this.behaviorAnalyzer.generateProfileTitle(analysis, playerSnapshot, userName);
+    const patternScore = Math.round((attrs.repeat + attrs.consistency) / 2);
+    const jobs = this._extractTopJobs(report);
+
+    return {
+      typeTitle,
+      metricLine: `위험 성향 ${Math.round(attrs.risk)}% / 패턴 반복성 ${patternScore}% / 심리전 대응 ${Math.round(attrs.adaptation)}%`,
+      jobLine: `추천 직업: ${(jobs.length ? jobs : ['전략 컨설턴트', '데이터 분석가', 'UX 리서처']).join(', ')}`,
+      aiReadLine: this._buildAiReadLine(playerSnapshot),
+    };
+  }
+
+  _extractTopJobs(report) {
+    const match = String(report || '').match(/\*\*추천 직업 5가지\*\*:\s*([\s\S]*)$/);
+    if (!match) return [];
+
+    return match[1]
+      .replace(/\s*(\d+\.)\s*/g, '\n$1 ')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const parsed = line.match(/^\d+\.\s*([^-]+?)(?:\s*-\s*.+)?$/);
+        return parsed ? parsed[1].trim() : '';
+      })
+      .filter(Boolean)
+      .slice(0, 3);
+  }
+
+  _buildAiReadLine(playerSnapshot) {
+    const attrs = playerSnapshot.attributes;
+    const choices = playerSnapshot.recentChoices || [];
+    const timeouts = choices.filter((choice) => choice.timeOut).length;
+    const changedChoices = choices.filter((choice) => choice.changedChoice).length;
+    const validTimes = choices
+      .filter((choice) => !choice.timeOut && choice.reactionTime > 0)
+      .map((choice) => choice.reactionTime);
+    const avgTime = validTimes.length
+      ? validTimes.reduce((sum, time) => sum + time, 0) / validTimes.length
+      : 0;
+
+    if (timeouts >= Math.max(2, Math.ceil(choices.length * 0.25))) {
+      return 'AI는 망설임과 결정 지연을 주요 신호로 기록했습니다.';
+    }
+
+    if (changedChoices >= 2 || attrs.adaptation > 65) {
+      return 'AI는 선택을 바꾸는 타이밍에서 심리적 저항을 감지했습니다.';
+    }
+
+    if (attrs.repeat > 60 || attrs.consistency > 70) {
+      return 'AI는 반복되는 선택 기준을 가장 먼저 감지했습니다.';
+    }
+
+    if (avgTime > 0 && avgTime < 1600) {
+      return 'AI는 빠른 결정 속도에서 직관적 판단 경향을 읽었습니다.';
+    }
+
+    return 'AI는 선택보다 선택을 숨기려는 방식에 주목했습니다.';
+  }
+
+  /**
    * 실제 학습 데이터를 기반으로 구체적인 분석 리포트 생성
    * BehaviorAnalyzer를 활용하여 행동 데이터 기반의 심층 분석 제공
    * @param {Object} playerSnapshot - 플레이어 모델 스냅샷
@@ -862,6 +1000,7 @@ export class AIEngine {
     this.dialogueHistory = [];
     this.lastDialogue = null;
     this.lastPrediction = null;
+    this.predictionRecords = [];
     this.isActive = false;
   }
 
