@@ -193,7 +193,7 @@ function LandingPage({ onStart }) {
           <div className="lp__step lp__reveal">
             <div className="lp__step-num">4</div>
             <h3 className="lp__step-title">분석 결과를 확인하세요</h3>
-            <p className="lp__step-desc">게임 종료 후 AI가 당신을 분석한 상세 리포트와 행동 프로필을 받습니다. 총 33개의 유형 중 당신은 과연 어떤 유형일까요?</p>
+            <p className="lp__step-desc">게임 종료 후 AI가 당신을 분석한 상세 리포트와 행동 프로필을 받습니다. 총 33개의 유형 중 당신은 과연 어떤 유형일까요? 당신의 분석 결과는 기록되어 다음 플레이에서는 더 정확한 분석이 가능해집니다. AI의 기억을 원하지 않을 경우 기억 삭제를 해주세요.</p>
           </div>
         </div>
       </section>
