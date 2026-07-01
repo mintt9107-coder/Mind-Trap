@@ -15,7 +15,19 @@ import { GAME_CONFIG, GAME_EVENTS } from '../utils/constants.js';
  * @param {Object} options.gameEngine - 게임 엔진 인스턴스
  * @returns {Object} 게임 화면 객체
  */
-export const createGameScreen = ({ gameEngine }) => {
+export const createGameScreen = ({ gameEngine, onBackToMenu, getUserName }) => {
+  const formatReadableText = (text = '') => String(text)
+    .trim()
+    .replace(/\s*\n\s*/g, '\n')
+    .replace(/([.!?。！？])\s+/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n');
+
+  const formatQuestionText = (text = '') => {
+    const userName = typeof getUserName === 'function' ? getUserName() : '';
+    const playerName = userName ? `${userName}님` : '당신';
+    return formatReadableText(String(text).replace(/\{playerName\}/g, playerName));
+  };
+
   const screen = createElement('div', {
     className: 'screen game-screen',
     id: 'game-screen',
@@ -65,29 +77,28 @@ export const createGameScreen = ({ gameEngine }) => {
   topBar.appendChild(progressElement);
   topBar.appendChild(timerElement);
 
-  // AI 대사 섹션
-  const aiDialogueSection = createElement('div', {
-    className: 'game__ai-dialogue',
+  const gameActions = createElement('div', {
+    className: 'game__actions',
   });
-  const aiAvatar = createElement('div', {
-    className: 'game__ai-avatar',
-    textContent: 'AI',
-  });
-  const aiDialogueText = createElement('p', {
-    className: 'game__ai-dialogue-text',
-    textContent: '분석을 시작합니다...',
-  });
-  aiDialogueSection.appendChild(aiAvatar);
-  aiDialogueSection.appendChild(aiDialogueText);
 
-  // 타이핑 타이머 추적 (깜빡임 방지) + 대사 큐
-  let typingTimer = null;
-  let queueTimer = null;
+  const pauseButton = createElement('button', {
+    className: 'game__action-btn',
+    textContent: 'STOP',
+  });
+  pauseButton.type = 'button';
+
+  const homeButton = createElement('button', {
+    className: 'game__action-btn',
+    textContent: 'HOME',
+  });
+  homeButton.type = 'button';
+
+  gameActions.appendChild(pauseButton);
+  gameActions.appendChild(homeButton);
+  topBar.appendChild(gameActions);
+
+  // 팝업 타이머 추적
   let feedbackTimer = null;
-  let currentDialogue = '';
-  let dialogueQueue = [];
-  let isTyping = false;
-  let dialogueToken = 0;
 
   // 질문 섹션
   const questionSection = createElement('div', {
@@ -125,8 +136,8 @@ export const createGameScreen = ({ gameEngine }) => {
   const { element: choiceElement, enable, disable, setFourChoices, setTwoChoices } = createGameChoice({
     primaryText: '선택 1',
     secondaryText: '선택 2',
-    onChoice: (choice) => {
-      gameEngine.handleChoice(choice);
+    onChoice: (choice, interactionMetrics) => {
+      gameEngine.handleChoice(choice, interactionMetrics);
     },
     disabled: true,
   });
@@ -144,31 +155,38 @@ export const createGameScreen = ({ gameEngine }) => {
   timeoutOverlay.appendChild(timeoutText);
 
   gameContainer.appendChild(topBar);
-  gameContainer.appendChild(aiDialogueSection);
   gameContainer.appendChild(questionSection);
   gameContainer.appendChild(choiceSection);
   screen.appendChild(gameContainer);
   screen.appendChild(timeoutOverlay);
 
-  const sanitizeDialogue = (dialogue) => String(dialogue)
-    .replace(/\uFFFD/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const popupOverlay = createElement('div', {
+    className: 'game__popup-overlay',
+  });
+  const popup = createElement('div', {
+    className: 'game__popup glass',
+  });
+  const popupTitle = createElement('h2', {
+    className: 'game__popup-title',
+    textContent: '',
+  });
+  const popupMessage = createElement('p', {
+    className: 'game__popup-message',
+    textContent: '',
+  });
+  const popupButton = createElement('button', {
+    className: 'btn btn--primary btn--medium game__popup-button',
+    textContent: '계속',
+  });
+  popupButton.type = 'button';
+  popup.appendChild(popupTitle);
+  popup.appendChild(popupMessage);
+  popup.appendChild(popupButton);
+  popupOverlay.appendChild(popup);
+  screen.appendChild(popupOverlay);
 
-  const resetDialogueQueue = () => {
-    dialogueToken++;
-    currentDialogue = '';
-    dialogueQueue = [];
-    isTyping = false;
-    if (typingTimer) {
-      clearTimeout(typingTimer);
-      typingTimer = null;
-    }
-    if (queueTimer) {
-      clearTimeout(queueTimer);
-      queueTimer = null;
-    }
-  };
+  let popupCloseHandler = null;
+  let isPausedByUser = false;
 
   const showAnalysisFeedback = (message) => {
     if (!message) return;
@@ -176,7 +194,7 @@ export const createGameScreen = ({ gameEngine }) => {
       clearTimeout(feedbackTimer);
       feedbackTimer = null;
     }
-    analysisFeedback.textContent = message;
+    analysisFeedback.textContent = formatReadableText(message);
     analysisFeedback.classList.add('game__analysis-feedback--visible');
     feedbackTimer = setTimeout(() => {
       analysisFeedback.classList.remove('game__analysis-feedback--visible');
@@ -184,59 +202,55 @@ export const createGameScreen = ({ gameEngine }) => {
     }, 3000);
   };
 
-  // ========== AI 대사 표시 (타자기 효과) ==========
-  // 새 대사가 오면 이전 타이핑을 정리하고 최신 대사만 표시합니다.
-  const showAiDialogue = (dialogue, isFinal = false) => {
-    const cleanDialogue = sanitizeDialogue(dialogue);
-    if (!cleanDialogue || cleanDialogue === currentDialogue) return;
-    resetDialogueQueue();
-    dialogueQueue.push({ dialogue: cleanDialogue, isFinal });
-    if (!isTyping) {
-      _processDialogueQueue();
+  const showAnalysisPopup = ({ title = 'AI :', message = '', buttonText = '계속', onClose } = {}) => {
+    if (!message) return;
+    popupTitle.textContent = title;
+    popupMessage.textContent = formatReadableText(message);
+    popupButton.textContent = buttonText;
+    popupCloseHandler = onClose || null;
+    popupOverlay.classList.add('game__popup-overlay--visible');
+    popupButton.focus();
+  };
+
+  const closeAnalysisPopup = () => {
+    popupOverlay.classList.remove('game__popup-overlay--visible');
+    const handler = popupCloseHandler;
+    popupCloseHandler = null;
+    if (typeof handler === 'function') {
+      handler();
     }
   };
 
-  const _processDialogueQueue = () => {
-    if (dialogueQueue.length === 0) {
-      isTyping = false;
-      return;
-    }
+  popupButton.addEventListener('click', closeAnalysisPopup);
 
-    isTyping = true;
-    const activeToken = dialogueToken;
-    const { dialogue, isFinal } = dialogueQueue.shift();
-    currentDialogue = dialogue;
-
-    if (isFinal) {
-      aiDialogueSection.classList.add('game__ai-dialogue--final');
-    } else {
-      aiDialogueSection.classList.remove('game__ai-dialogue--final');
-    }
-
-    aiDialogueSection.classList.add('game__ai-dialogue--active');
-
-    aiDialogueText.textContent = '';
-    let i = 0;
-    const speed = 12;
-    const typeNext = () => {
-      if (activeToken !== dialogueToken) return;
-      if (i < dialogue.length) {
-        aiDialogueText.textContent += dialogue[i];
-        i++;
-        typingTimer = setTimeout(typeNext, speed);
-      } else {
-        typingTimer = null;
-        // 타이핑 완료 후 잠시 대기 후 다음 대사 처리
-        queueTimer = setTimeout(() => {
-          if (activeToken !== dialogueToken) return;
-          queueTimer = null;
-          isTyping = false;
-          _processDialogueQueue();
-        }, 500);
-      }
-    };
-    typeNext();
+  const showPausePopup = () => {
+    if (popupOverlay.classList.contains('game__popup-overlay--visible')) return;
+    isPausedByUser = true;
+    gameEngine.pauseGame();
+    disable();
+    showAnalysisPopup({
+      title: 'AI :',
+      message: '분석을 잠시 멈췄습니다. 계속하면 남은 시간부터 다시 진행됩니다.',
+      buttonText: '계속하기',
+      onClose: () => {
+        isPausedByUser = false;
+        gameEngine.resumeGame();
+        if (gameEngine.getState().isAwaitingChoice) {
+          enable();
+        }
+      },
+    });
   };
+
+  pauseButton.addEventListener('click', showPausePopup);
+
+  homeButton.addEventListener('click', () => {
+    if (confirm('홈 화면으로 돌아가시겠습니까? 현재 게임은 종료됩니다.')) {
+      popupOverlay.classList.remove('game__popup-overlay--visible');
+      popupCloseHandler = null;
+      onBackToMenu?.();
+    }
+  });
 
   // ========== 이벤트 리스너 등록 ==========
   gameEngine.addEventListener(GAME_EVENTS.ROUND_START, ({ round, totalRounds, question }) => {
@@ -244,7 +258,7 @@ export const createGameScreen = ({ gameEngine }) => {
     updateProgress(round - 1, '');
 
     // 질문 표시
-    questionText.textContent = question.prompt;
+    questionText.textContent = formatQuestionText(question.prompt);
     questionPrompt.textContent = '';
 
     // 선택지 설정 (4선택지 vs 2선택지)
@@ -266,9 +280,10 @@ export const createGameScreen = ({ gameEngine }) => {
 
     timeoutOverlay.classList.remove('visible');
 
-    // 새 라운드 시작 시 대사 큐 초기화
-    resetDialogueQueue();
     analysisFeedback.classList.remove('game__analysis-feedback--visible');
+    if (isPausedByUser) {
+      disable();
+    }
   });
 
   // 타이머 틱 이벤트
@@ -290,7 +305,7 @@ export const createGameScreen = ({ gameEngine }) => {
   // 2단계 선택지 이벤트
   gameEngine.addEventListener(GAME_EVENTS.TWO_STAGE, ({ aiMessage, prompt, choices }) => {
     questionPrompt.textContent = '';
-    questionText.textContent = prompt || aiMessage || '처음 선택을 유지할지, 다른 선택으로 바꿀지 결정하세요.';
+    questionText.textContent = formatQuestionText(prompt || aiMessage || '처음 선택을 유지할지, 다른 선택으로 바꿀지 결정하세요.');
     setTwoChoices(choices.primary, choices.secondary);
     enable();
     updateTimer(GAME_CONFIG.ROUND_TIME_LIMIT);
@@ -326,13 +341,15 @@ export const createGameScreen = ({ gameEngine }) => {
     questionPrompt.textContent = '';
     questionText.textContent = '';
     analysisFeedback.classList.remove('game__analysis-feedback--visible');
+    popupOverlay.classList.remove('game__popup-overlay--visible');
+    popupCloseHandler = null;
+    isPausedByUser = false;
     timerElement.classList.remove('circular-progress--danger');
-    resetDialogueQueue();
     if (feedbackTimer) {
       clearTimeout(feedbackTimer);
       feedbackTimer = null;
     }
   };
 
-  return { element: screen, show, hide, showAiDialogue, showAnalysisFeedback };
+  return { element: screen, show, hide, showAnalysisFeedback, showAnalysisPopup };
 };

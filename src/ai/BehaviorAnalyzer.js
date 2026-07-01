@@ -1422,7 +1422,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}무작위처럼 움직였지만, 그 안에도 자신만의 리듬이 있었습니다.`,
         `${namePrefix}패턴을 지우려는 플레이를 했습니다. 하지만 지우는 방식도 성향을 드러냅니다.`,
       ];
-      return this._pickProfileTitle(titles, `${titleKeyPrefix}:random`, '위장 전략형');
+      return this._pickProfileTitle(titles, `${titleKeyPrefix}:random`, ['패턴 위장가', '랜덤 플레이어', '예측 회피자']);
     }
 
     // 각 특성별 점수로 가장 두드러진 특성 찾기
@@ -1440,7 +1440,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}안정적인 선택을 선호합니다. 다만 안정감이 패턴으로 굳어질 수 있습니다.`,
         `${namePrefix}기준이 분명한 사람입니다. AI에게는 그 기준이 가장 좋은 단서가 됩니다.`,
       ];
-      traits.push({ score: attrs.consistency, titles, key: 'consistency', label: '패턴 고정형' });
+      traits.push({ score: attrs.consistency, titles, key: 'consistency', label: ['규칙 고수자', '일관 선택가', '패턴 유지형'] });
     }
     if (attrs.hesitation > 60) {
       const titles = [
@@ -1453,7 +1453,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}빠른 결정보다 납득 가능한 결정을 더 중요하게 여깁니다.`,
         `${namePrefix}선택을 미루는 시간이 길수록 마음속 기준이 복잡해집니다.`,
       ];
-      traits.push({ score: attrs.hesitation, titles, key: 'hesitation', label: '신중 탐색형' });
+      traits.push({ score: attrs.hesitation, titles, key: 'hesitation', label: ['신중 분석가', '검토형 판단자', '후회 방지형'] });
     }
     if (attrs.risk < 30) {
       const titles = [
@@ -1466,7 +1466,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}쉽게 뛰어들지 않습니다. 확인하고, 비교하고, 그다음에 움직입니다.`,
         `${namePrefix}확실하지 않은 상황에서는 스스로를 보호하는 쪽으로 기웁니다.`,
       ];
-      traits.push({ score: 100 - attrs.risk, titles, key: 'risk_low', label: '안전 우선형' });
+      traits.push({ score: 100 - attrs.risk, titles, key: 'risk_low', label: ['안전 설계자', '리스크 관리자', '손실 방어형'] });
     }
     if (attrs.risk > 70) {
       const titles = [
@@ -1479,7 +1479,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}판단이 빠르고 과감합니다. 그 속도는 무기이자 약점입니다.`,
         `${namePrefix}확실하지 않아도 시도해보는 쪽을 택하는 성향이 강합니다.`,
       ];
-      traits.push({ score: attrs.risk, titles, key: 'risk_high', label: '기회 돌파형' });
+      traits.push({ score: attrs.risk, titles, key: 'risk_high', label: ['기회 추격자', '도전 실행가', '승부 감각형'] });
     }
     if (attrs.adaptation > 60 && attrs.trustAI < 40) {
       const titles = [
@@ -1492,7 +1492,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}예측을 거부하는 태도가 강합니다. 그래서 더 흥미로운 패턴을 남깁니다.`,
         `${namePrefix}상대가 읽는 순간 방향을 바꾸려는 감각이 있습니다.`,
       ];
-      traits.push({ score: attrs.adaptation + (100 - attrs.trustAI), titles, key: 'resistance', label: '예측 저항형' });
+      traits.push({ score: attrs.adaptation + (100 - attrs.trustAI), titles, key: 'resistance', label: ['예측 거부자', '심리전 방어자', '통제권 집착형'] });
     }
     if (attrs.trustAI > 65) {
       const titles = [
@@ -1505,7 +1505,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}외부 신호를 민감하게 받아들이는 만큼 방향 전환도 빠릅니다.`,
         `${namePrefix}자기 판단과 외부 분석 사이에서 균형을 찾으려 합니다.`,
       ];
-      traits.push({ score: attrs.trustAI, titles, key: 'trust_ai', label: '분석 수용형' });
+      traits.push({ score: attrs.trustAI, titles, key: 'trust_ai', label: ['정보 활용가', '분석 수용자', '협력 판단형'] });
     }
     if (attrs.adaptation > 65 && attrs.trustAI >= 40 && attrs.trustAI <= 60) {
       const titles = [
@@ -1518,7 +1518,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}유연하지만 완전히 즉흥적이지는 않습니다. 상황을 보고 움직입니다.`,
         `${namePrefix}읽히지 않으려 하기보다, 읽힌 뒤에 다시 바꾸는 쪽에 가깝습니다.`,
       ];
-      traits.push({ score: attrs.adaptation, titles, key: 'adaptation', label: '유연한 흐름형' });
+      traits.push({ score: attrs.adaptation, titles, key: 'adaptation', label: ['상황 적응가', '전략 전환가', '판단 조율자'] });
     }
     if (attrs.reaction > 70 && attrs.hesitation < 25) {
       const titles = [
@@ -1533,7 +1533,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}반응이 빠르고 단호합니다. 그래서 AI도 그 속도를 단서로 삼습니다.`,
         `${namePrefix}직관을 믿는 편입니다. 그 직관이 맞을 때는 누구보다 빠릅니다.`,
       ];
-      traits.push({ score: attrs.reaction, titles, key: 'fast_reaction', label: '직관 속도형' });
+      traits.push({ score: attrs.reaction, titles, key: 'fast_reaction', label: ['즉시 실행가', '직감 반응형', '빠른 결정자'] });
     }
     if (attrs.reaction < 30 && attrs.hesitation > 40) {
       const titles = [
@@ -1546,7 +1546,7 @@ export class BehaviorAnalyzer {
         `${namePrefix}결정 전 갈등이 있지만, 그만큼 결과를 가볍게 보지 않습니다.`,
         `${namePrefix}바로 고르기보다 한 번 더 확인하는 쪽에 가깝습니다.`,
       ];
-      traits.push({ score: 100 - attrs.reaction, titles, key: 'slow_reaction', label: '검토 집중형' });
+      traits.push({ score: 100 - attrs.reaction, titles, key: 'slow_reaction', label: ['깊은 검토자', '신중 결정자', '근거 확인형'] });
     }
 
     if (traits.length > 0) {
@@ -1564,7 +1564,7 @@ export class BehaviorAnalyzer {
       `${namePrefix}무리하게 튀기보다 흐름을 보며 판단하는 편입니다.`,
       `${namePrefix}읽기 쉬운 사람은 아니지만, 완전히 예측 불가능하지도 않습니다.`,
     ];
-    return this._pickProfileTitle(defaultTitles, `${titleKeyPrefix}:balanced`, '균형 조절형');
+    return this._pickProfileTitle(defaultTitles, `${titleKeyPrefix}:balanced`, ['균형 조율자', '상황 판단자', '균형형 플레이어']);
   }
 
   _pickProfileTitle(titles, key, traitLabel = '') {
@@ -1597,10 +1597,13 @@ export class BehaviorAnalyzer {
   }
 
   _attachProfileTraitLabel(title, traitLabel) {
-    if (!title || !traitLabel || title.includes(`'${traitLabel}'`)) return title;
+    if (!title || !traitLabel) return title;
 
     const normalized = title.replace(/\s+/g, ' ').trim().replace(/[.。]\s*$/, '');
-    return `${normalized}. 한마디로 '${traitLabel}'입니다.`;
+    const labels = Array.isArray(traitLabel) ? traitLabel : [traitLabel];
+    const label = labels[Math.floor(Math.random() * labels.length)];
+    if (!label || normalized.includes(`'${label}'`)) return title;
+    return `${normalized}. 한마디로 '${label}'입니다.`;
   }
 
   /**

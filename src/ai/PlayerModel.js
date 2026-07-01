@@ -35,6 +35,16 @@ export class PlayerModel {
       patience: 50,
       // 일관성 (0-100)
       consistency: 50,
+      // 충동성 (0-100)
+      impulsive: 50,
+      // 압박 저항력 (0-100)
+      pressureResistance: 50,
+      // 재검토 성향 (0-100)
+      selfCorrection: 50,
+      // 탐색 성향 (0-100)
+      exploration: 50,
+      // 확실성 추구 (0-100)
+      certaintySeeking: 50,
     };
 
     /** @type {number} 예측 정확도 (0-1) */
@@ -57,6 +67,24 @@ export class PlayerModel {
 
     /** @type {Object} 선택 빈도 통계 */
     this.choiceFrequency = {};
+
+    /** @type {Object} 분석 근거 데이터 */
+    this.evidenceStats = {
+      questionTypeCounts: {},
+      intentCounts: {},
+      phaseCounts: { early: 0, mid: 0, late: 0 },
+      speedShiftCounts: { faster: 0, stable: 0, slower: 0, timeout: 0 },
+      twoStageCount: 0,
+      twoStageChangedCount: 0,
+      changedChoiceCount: 0,
+      timeoutCount: 0,
+      hoverSwitchTotal: 0,
+      pressureResponseTotal: 0,
+      secondThoughtTotal: 0,
+      concealmentSignalTotal: 0,
+      choiceDiversityTotal: 0,
+      evidenceRounds: 0,
+    };
   }
 
   /**
@@ -118,13 +146,42 @@ export class PlayerModel {
       ...metadata,
     });
 
-    // 최근 10개만 유지
-    if (this.recentChoices.length > 10) {
+    // 전체 20라운드 흐름을 결과 신뢰도 계산에 활용합니다.
+    if (this.recentChoices.length > 20) {
       this.recentChoices.shift();
     }
 
     // 빈도 업데이트
     this.choiceFrequency[choice] = (this.choiceFrequency[choice] || 0) + 1;
+    this._recordEvidence(metadata);
+  }
+
+  _recordEvidence(metadata = {}) {
+    this.evidenceStats.evidenceRounds += 1;
+
+    const questionType = metadata.questionType || 'unknown';
+    const intentTag = metadata.intentTag || 'unknown';
+    const phase = metadata.roundPhase || 'mid';
+    const speedShift = metadata.speedShift || 'stable';
+
+    this.evidenceStats.questionTypeCounts[questionType] =
+      (this.evidenceStats.questionTypeCounts[questionType] || 0) + 1;
+    this.evidenceStats.intentCounts[intentTag] =
+      (this.evidenceStats.intentCounts[intentTag] || 0) + 1;
+    this.evidenceStats.phaseCounts[phase] =
+      (this.evidenceStats.phaseCounts[phase] || 0) + 1;
+    this.evidenceStats.speedShiftCounts[speedShift] =
+      (this.evidenceStats.speedShiftCounts[speedShift] || 0) + 1;
+
+    this.evidenceStats.twoStageCount += metadata.twoStage ? 1 : 0;
+    this.evidenceStats.twoStageChangedCount += metadata.twoStage && metadata.changedChoice ? 1 : 0;
+    this.evidenceStats.changedChoiceCount += metadata.changedChoice ? 1 : 0;
+    this.evidenceStats.timeoutCount += metadata.timeOut ? 1 : 0;
+    this.evidenceStats.hoverSwitchTotal += metadata.hoverSwitchCount || 0;
+    this.evidenceStats.pressureResponseTotal += metadata.pressureResponse || 0;
+    this.evidenceStats.secondThoughtTotal += metadata.secondThoughtSignal || 0;
+    this.evidenceStats.concealmentSignalTotal += metadata.concealmentSignal || 0;
+    this.evidenceStats.choiceDiversityTotal += metadata.recentChoiceDiversity || 0;
   }
 
   /**
@@ -159,6 +216,13 @@ export class PlayerModel {
       analyzedRounds: this.analyzedRounds,
       recentChoices: [...this.recentChoices],
       choiceFrequency: { ...this.choiceFrequency },
+      evidenceStats: {
+        ...this.evidenceStats,
+        questionTypeCounts: { ...this.evidenceStats.questionTypeCounts },
+        intentCounts: { ...this.evidenceStats.intentCounts },
+        phaseCounts: { ...this.evidenceStats.phaseCounts },
+        speedShiftCounts: { ...this.evidenceStats.speedShiftCounts },
+      },
       playerType: this.getPlayerType(),
     };
   }
@@ -168,8 +232,12 @@ export class PlayerModel {
    * @returns {string} 플레이어 타입
    */
   getPlayerType() {
-    const { risk, patience, consistency, hesitation } = this.attributes;
+    const { risk, patience, consistency, hesitation, impulsive, selfCorrection, exploration, pressureResistance } = this.attributes;
 
+    if (selfCorrection > 70 && hesitation > 45) return 'self_editor';
+    if (exploration > 70 && consistency < 55) return 'explorer';
+    if (pressureResistance < 35 && hesitation > 55) return 'pressure_sensitive';
+    if (impulsive > 70 && patience < 45) return 'impulsive';
     if (risk > 70 && consistency < 40) return 'unpredictable';
     if (risk > 70 && hesitation < 30) return 'aggressive';
     if (patience > 70 && risk < 40) return 'cautious';

@@ -75,39 +75,56 @@ export class MindTrap {
    * @private
    */
   _bindAiEngine() {
-    // 게임 시작 시 AI 엔진 초기화. 게임 중 대사는 라운드당 1회만 노출합니다.
+    // 게임 시작 시 AI 엔진 초기화 후 시작 안내를 팝업으로 노출합니다.
     this.gameEngine.addEventListener(GAME_EVENTS.GAME_START, () => {
+      this.gameEngine.holdContinuation();
       this.aiEngine.initialize();
+      this.screens.game.showAnalysisPopup({
+        ...this.aiEngine.getGameStartPopupMessage(),
+        onClose: () => this.gameEngine.continueAfterPopup(),
+      });
     });
 
-    // 라운드 시작 시 AI 예측 + 심리전 대사
+    // 라운드 시작 시 내부 예측만 수행합니다. 화면 대사는 선택 후 팝업에서 합쳐서 보여줍니다.
     this.gameEngine.addEventListener(GAME_EVENTS.ROUND_START, async (data) => {
       const currentQuestion = data.question;
       try {
-        const result = await this.aiEngine.onRoundStart(currentQuestion);
-        if (result?.dialogue) {
-          this._showAiDialogue(result.dialogue);
-        }
+        await this.aiEngine.onRoundStart(currentQuestion, { generateDialogue: false });
       } catch (error) {
         console.error('AI round start error:', error);
       }
     });
 
-    // 유저 선택은 학습에만 반영합니다. 게임 중 AI 대사는 라운드당 1회만 노출합니다.
+    // 유저 선택 후 분석 결과와 AI 대사를 하나의 팝업으로 노출합니다.
     this.gameEngine.addEventListener(GAME_EVENTS.CHOICE_MADE, (roundData) => {
+      this.gameEngine.holdContinuation();
       const feedback = this.aiEngine.evaluateRoundResult(roundData);
-      if (feedback?.feedback) {
-        this.screens.game.showAnalysisFeedback(feedback.feedback);
-      }
+      this.screens.game.showAnalysisPopup({
+        ...this.aiEngine.buildChoicePopupMessage(roundData, feedback),
+        onClose: () => this.gameEngine.continueAfterPopup(),
+      });
       this.aiEngine.onRoundEnd(roundData);
     });
 
     this.gameEngine.addEventListener(GAME_EVENTS.TIME_EXPIRED, (roundData) => {
+      this.gameEngine.holdContinuation();
       const feedback = this.aiEngine.evaluateRoundResult(roundData);
-      if (feedback?.feedback) {
-        this.screens.game.showAnalysisFeedback(feedback.feedback);
-      }
+      this.screens.game.showAnalysisPopup({
+        ...this.aiEngine.buildChoicePopupMessage(roundData, feedback),
+        onClose: () => this.gameEngine.continueAfterPopup(),
+      });
       this.aiEngine.onRoundEnd(roundData);
+    });
+
+    this.gameEngine.addEventListener(GAME_EVENTS.TWO_STAGE, (data) => {
+      window.setTimeout(() => {
+        this.gameEngine.pauseGame();
+        this.screens.game.showAnalysisPopup({
+          ...this.aiEngine.buildTwoStagePopupMessage(data),
+          buttonText: '선택하기',
+          onClose: () => this.gameEngine.resumeGame(),
+        });
+      }, 0);
     });
 
     // 게임 종료 시 최종 분석 리포트 + 프로필 생성
@@ -134,20 +151,6 @@ export class MindTrap {
         console.error('AI final report error:', error);
       }
     });
-  }
-
-  /**
-   * AI 대사를 GameScreen에 전달하여 표시
-   * @param {string} dialogue - AI 대사
-   * @param {boolean} [isFinal=false] - 최종 리포트 여부
-   * @private
-   */
-  _showAiDialogue(dialogue, isFinal = false) {
-    if (!dialogue) return;
-    const gameScreen = this.screens.game;
-    if (gameScreen && typeof gameScreen.showAiDialogue === 'function') {
-      gameScreen.showAiDialogue(dialogue, isFinal);
-    }
   }
 
   _loadViewMode() {
@@ -244,14 +247,14 @@ export class MindTrap {
     // 게임 화면
     this.screens.game = createGameScreen({
       gameEngine: this.gameEngine,
+      onBackToMenu: () => {
+        this._handleBackToMenu();
+      },
     });
 
     // 결과 화면
     this.screens.result = createResultScreen({
       gameEngine: this.gameEngine,
-      onRestart: () => {
-        this._handleRestart();
-      },
       onBackToMenu: () => {
         this._handleBackToMenu();
       },

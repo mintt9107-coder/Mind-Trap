@@ -66,7 +66,7 @@ export const createLandingScreen = ({
 
   const gameIntro = createElement('p', {
     className: 'landing__intro',
-    textContent: 'MindTrap은 플레이어가 선택을 숨기려는 순간까지 AI가 관찰하는 심리 분석 게임입니다.\n플레이를 반복할수록 AI는 반응속도, 흔들림, 반복되는 기준을 기억하며 더 정밀한 가설을 세웁니다.\n속이려는 시도도 하나의 패턴이 됩니다.',
+    textContent: 'MindTrap은 정답을 맞히는 게임이 아니라, 제한 시간 안에서 드러나는 선택 습관을 AI가 읽어내는 심리 분석 게임입니다. 망설임, 반복, 마음을 바꾸는 타이밍, 일부러 속이려는 시도까지 모두 하나의 행동 프로필로 기록됩니다.',
   });
 
   // ========== 화면 버전 선택 ==========

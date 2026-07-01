@@ -618,6 +618,33 @@
   flex: 1;
 }
 
+.game__actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.game__action-btn {
+  min-width: 58px;
+  height: 36px;
+  padding: 0 var(--spacing-md);
+  border: 1px solid rgba(192, 132, 252, 0.22);
+  border-radius: var(--radius-md);
+  background: rgba(124, 58, 237, 0.10);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.game__action-btn:hover {
+  border-color: rgba(192, 132, 252, 0.45);
+  background: rgba(124, 58, 237, 0.18);
+}
+
 /* AI 대사 섹션 (심리전) */
 .game__ai-dialogue {
   display: flex;
@@ -685,6 +712,7 @@
   font-weight: 600;
   color: var(--color-text-primary);
   line-height: 1.4;
+  white-space: pre-line;
 }
 
 .game__analysis-feedback {
@@ -695,6 +723,8 @@
   color: #c084fc;
   font-size: var(--font-size-sm);
   font-weight: 800;
+  line-height: 1.5;
+  white-space: pre-line;
   text-align: center;
   opacity: 0;
   transform: translateY(-4px);
@@ -739,6 +769,55 @@
   font-weight: 700;
   color: var(--color-timer-danger);
   animation: pulse 0.5s ease;
+}
+
+.game__popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+}
+
+.game__popup-overlay--visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.game__popup {
+  width: min(440px, 100%);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(192, 132, 252, 0.22);
+  background: rgba(18, 18, 28, 0.72);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  text-align: left;
+}
+
+.game__popup-title {
+  margin: 0 0 var(--spacing-sm);
+  color: #c084fc;
+  font-size: var(--font-size-lg);
+  font-weight: 900;
+}
+
+.game__popup-message {
+  margin: 0 0 var(--spacing-lg);
+  white-space: pre-line;
+  color: #c9b6ff;
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+}
+
+.game__popup-button {
+  width: 100%;
 }
 
 /* ============================================
@@ -822,6 +901,7 @@
   font-size: var(--font-size-2xl);
   font-weight: 900;
   line-height: 1.35;
+  white-space: pre-line;
   color: var(--color-text-primary);
 }
 
@@ -840,7 +920,7 @@
 
 .result__signal-card {
   padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
   border-radius: var(--radius-lg);
   text-align: left;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -854,6 +934,36 @@
 }
 
 .result__signal-text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.result__reliability-card {
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-2xl);
+  border-radius: var(--radius-lg);
+  text-align: left;
+  border: 1px solid rgba(192, 132, 252, 0.18);
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.result__reliability-title {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-base);
+  font-weight: 800;
+  color: #c9b6ff;
+}
+
+.result__reliability-score {
+  margin: 0 0 var(--spacing-xs);
+  font-size: var(--font-size-lg);
+  font-weight: 900;
+  line-height: 1.45;
+  color: #fbbf24;
+}
+
+.result__reliability-reasons {
   margin: 0;
   color: var(--color-text-secondary);
   line-height: 1.6;
@@ -962,8 +1072,9 @@
 
 .analysis-item__percent {
   font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--color-primary);
+  font-weight: 900;
+  color: #e9d5ff;
+  text-shadow: 0 0 12px rgba(216, 180, 254, 0.38);
 }
 
 .analysis-item__bar-track {

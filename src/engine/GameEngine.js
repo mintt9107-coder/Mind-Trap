@@ -30,6 +30,10 @@ export class GameEngine {
     this.isTwoStagePhase = false;
     this.twoStageData = null;
     this.pendingTwoStageChoice = null;
+    this.isPaused = false;
+    this.shouldHoldContinuation = false;
+    this.pendingContinuation = null;
+    this.pendingContinuationTimer = null;
 
     this.listeners = {};
     this._setupTimerListeners();
@@ -131,6 +135,13 @@ export class GameEngine {
     this.isTwoStagePhase = false;
     this.twoStageData = null;
     this.pendingTwoStageChoice = null;
+    this.isPaused = false;
+    this.shouldHoldContinuation = false;
+    this.pendingContinuation = null;
+    if (this.pendingContinuationTimer) {
+      clearTimeout(this.pendingContinuationTimer);
+      this.pendingContinuationTimer = null;
+    }
 
     this.changeScreen(SCREEN_STATES.GAME);
 
@@ -139,7 +150,39 @@ export class GameEngine {
       questions: questionSet,
     });
 
-    this._startNextRound();
+    this._scheduleContinuation(() => this._startNextRound(), 0);
+  }
+
+  holdContinuation() {
+    this.shouldHoldContinuation = true;
+    if (this.pendingContinuationTimer) {
+      clearTimeout(this.pendingContinuationTimer);
+      this.pendingContinuationTimer = null;
+    }
+  }
+
+  continueAfterPopup() {
+    this.shouldHoldContinuation = false;
+    const continuation = this.pendingContinuation;
+    this.pendingContinuation = null;
+    if (typeof continuation === 'function') {
+      continuation();
+    }
+  }
+
+  _scheduleContinuation(callback, delay = 0) {
+    if (this.shouldHoldContinuation) {
+      this.pendingContinuation = callback;
+      return;
+    }
+
+    if (this.pendingContinuationTimer) {
+      clearTimeout(this.pendingContinuationTimer);
+    }
+    this.pendingContinuationTimer = setTimeout(() => {
+      this.pendingContinuationTimer = null;
+      callback();
+    }, delay);
   }
 
   /**
@@ -173,8 +216,13 @@ export class GameEngine {
    * @param {string} choice - 선택한 답변
    * @param {boolean} changedChoice - 선택 변경 여부
    */
-  handleChoice(choice, changedChoice = false) {
+  handleChoice(choice, choiceMetaOrChanged = false) {
     if (!this.isAwaitingChoice) return;
+
+    const interactionMetrics = typeof choiceMetaOrChanged === 'object' && choiceMetaOrChanged !== null
+      ? choiceMetaOrChanged
+      : {};
+    const changedChoice = typeof choiceMetaOrChanged === 'boolean' ? choiceMetaOrChanged : false;
 
     this.isAwaitingChoice = false;
     const reactionTime = this.timerEngine.getReactionTime();
@@ -194,6 +242,7 @@ export class GameEngine {
         firstChoice: this.pendingTwoStageChoice,
         changedChoice: choice === 'secondary',
         reactionTime,
+        interactionMetrics,
         timeOut: false,
         twoStage: true,
         timestamp: createTimestamp(),
@@ -218,9 +267,9 @@ export class GameEngine {
       this.pendingTwoStageChoice = null;
 
       if (this.roundManager.isGameComplete()) {
-        setTimeout(() => this._endGame(), 500);
+        this._scheduleContinuation(() => this._endGame(), 500);
       } else {
-        setTimeout(() => this._startNextRound(), 1800);
+        this._scheduleContinuation(() => this._startNextRound(), 1800);
       }
       return;
     }
@@ -257,6 +306,7 @@ export class GameEngine {
       choice,
       reactionTime,
       changedChoice,
+      interactionMetrics,
       timeOut: false,
       timestamp: createTimestamp(),
     };
@@ -276,9 +326,9 @@ export class GameEngine {
     });
 
     if (this.roundManager.isGameComplete()) {
-      setTimeout(() => this._endGame(), 500);
+      this._scheduleContinuation(() => this._endGame(), 500);
     } else {
-      setTimeout(() => this._startNextRound(), 1800);
+      this._scheduleContinuation(() => this._startNextRound(), 1800);
     }
   }
 
@@ -328,9 +378,9 @@ export class GameEngine {
       this.pendingTwoStageChoice = null;
 
       if (this.roundManager.isGameComplete()) {
-        setTimeout(() => this._endGame(), 500);
+        this._scheduleContinuation(() => this._endGame(), 500);
       } else {
-        setTimeout(() => this._startNextRound(), 1800);
+        this._scheduleContinuation(() => this._startNextRound(), 1800);
       }
       return;
     }
@@ -368,10 +418,22 @@ export class GameEngine {
     });
 
     if (this.roundManager.isGameComplete()) {
-      setTimeout(() => this._endGame(), 500);
+      this._scheduleContinuation(() => this._endGame(), 500);
     } else {
-      setTimeout(() => this._startNextRound(), 1800);
+      this._scheduleContinuation(() => this._startNextRound(), 1800);
     }
+  }
+
+  pauseGame() {
+    if (!this.isGameRunning || this.isPaused) return;
+    this.isPaused = true;
+    this.timerEngine.pause();
+  }
+
+  resumeGame() {
+    if (!this.isGameRunning || !this.isPaused) return;
+    this.isPaused = false;
+    this.timerEngine.resume();
   }
 
   /**
@@ -420,6 +482,13 @@ export class GameEngine {
   restartGame() {
     this.roundManager.reset();
     this.timerEngine.stop();
+    if (this.pendingContinuationTimer) {
+      clearTimeout(this.pendingContinuationTimer);
+      this.pendingContinuationTimer = null;
+    }
+    this.pendingContinuation = null;
+    this.shouldHoldContinuation = false;
+    this.isPaused = false;
     this.isGameRunning = false;
     this.isAwaitingChoice = false;
     this.isTwoStagePhase = false;
@@ -434,6 +503,13 @@ export class GameEngine {
   backToMenu() {
     this.roundManager.reset();
     this.timerEngine.stop();
+    if (this.pendingContinuationTimer) {
+      clearTimeout(this.pendingContinuationTimer);
+      this.pendingContinuationTimer = null;
+    }
+    this.pendingContinuation = null;
+    this.shouldHoldContinuation = false;
+    this.isPaused = false;
     this.gameService.clearAllData();
     this.isGameRunning = false;
     this.isAwaitingChoice = false;
@@ -455,6 +531,7 @@ export class GameEngine {
       totalRounds: this.roundManager.totalRounds,
       timerState: this.timerEngine.state,
       isTwoStagePhase: this.isTwoStagePhase,
+      isPaused: this.isPaused,
     };
   }
 

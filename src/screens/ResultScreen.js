@@ -348,15 +348,20 @@ const createAnalysisGraphItem = (section) => {
   return item;
 };
 
+const formatResultSummaryText = (text = '') => String(text)
+  .trim()
+  .replace(/\s*\n\s*/g, '\n')
+  .replace(/([.!?。！？])\s+/g, '$1\n')
+  .replace(/\n{3,}/g, '\n\n');
+
 /**
  * ResultScreen 생성
  * @param {Object} options - 결과 화면 옵션
  * @param {Object} options.gameEngine - 게임 엔진 인스턴스
- * @param {Function} options.onRestart - 재시작 콜백
  * @param {Function} options.onBackToMenu - 메뉴로 돌아가기 콜백
  * @returns {Object} 결과 화면 객체
  */
-export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
+export const createResultScreen = ({ gameEngine, onBackToMenu }) => {
   const screen = createElement('div', {
     className: 'screen result-screen',
     id: 'result-screen',
@@ -370,7 +375,7 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
   // 제목
   const title = createElement('h1', {
     className: 'result__title text-gradient',
-    textContent: '게임 완료',
+    textContent: '분석 완료',
   });
 
   // AI 한마디 프로필 제목 (행동 분석 기반)
@@ -431,6 +436,29 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
 
   signalCard.appendChild(signalTitle);
   signalCard.appendChild(signalText);
+
+  const reliabilityCard = createElement('section', {
+    className: 'result__reliability-card glass',
+  });
+
+  const reliabilityTitle = createElement('h2', {
+    className: 'result__reliability-title',
+    textContent: '분석 신뢰도',
+  });
+
+  const reliabilityScore = createElement('p', {
+    className: 'result__reliability-score',
+    textContent: '분석 신뢰도: 계산 중',
+  });
+
+  const reliabilityReasons = createElement('p', {
+    className: 'result__reliability-reasons',
+    textContent: '근거를 수집 중입니다.',
+  });
+
+  reliabilityCard.appendChild(reliabilityTitle);
+  reliabilityCard.appendChild(reliabilityScore);
+  reliabilityCard.appendChild(reliabilityReasons);
 
   // 통계 카드 섹션
   const statsSection = createElement('div', {
@@ -568,26 +596,21 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
     className: 'result__buttons',
   });
 
-  const restartBtn = createButton({
-    text: '다시 시작',
-    variant: 'primary',
-    size: 'large',
-    onClick: onRestart,
-  });
-
   const menuBtn = createButton({
-    text: '메뉴로',
-    variant: 'secondary',
+    text: '메뉴',
+    variant: 'primary',
     size: 'large',
     onClick: onBackToMenu,
   });
 
-  buttonSection.appendChild(restartBtn);
   buttonSection.appendChild(menuBtn);
 
   resultContainer.appendChild(title);
   resultContainer.appendChild(profileTitle);
   resultContainer.appendChild(resultMessage);
+  resultContainer.appendChild(summaryCard);
+  resultContainer.appendChild(signalCard);
+  resultContainer.appendChild(reliabilityCard);
   resultContainer.appendChild(statsSection);
   resultContainer.appendChild(analysisSection);
   resultContainer.appendChild(jobRecommendationSection);
@@ -672,10 +695,14 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
   const setSummaryCard = (summary) => {
     summaryCardData = summary || null;
     if (!summaryCardData) return;
-    summaryType.textContent = summaryCardData.typeTitle || 'AI가 당신의 선택 흐름을 분석했습니다.';
+    summaryType.textContent = formatResultSummaryText(summaryCardData.typeTitle || 'AI가 당신의 선택 흐름을 분석했습니다.');
     summaryMetric.textContent = summaryCardData.metricLine || '위험 성향 --% / 패턴 반복성 --% / 심리전 대응 --%';
     summaryJobs.textContent = summaryCardData.jobLine || '추천 직업: 분석 중';
     signalText.textContent = summaryCardData.aiReadLine || 'AI는 선택보다 선택을 숨기려는 방식에 주목했습니다.';
+    reliabilityScore.textContent = summaryCardData.reliability?.line || '분석 신뢰도: 계산 중';
+    reliabilityReasons.textContent = summaryCardData.reliability?.reasons?.length
+      ? `근거: ${summaryCardData.reliability.reasons.join(' / ')}`
+      : '근거를 수집 중입니다.';
   };
 
   /**
@@ -805,6 +832,9 @@ export const createResultScreen = ({ gameEngine, onRestart, onBackToMenu }) => {
       lines.push(summaryCardData.typeTitle);
       lines.push(summaryCardData.metricLine);
       lines.push(summaryCardData.aiReadLine);
+      if (summaryCardData.reliability?.line) {
+        lines.push(summaryCardData.reliability.line);
+      }
       lines.push(summaryCardData.jobLine);
       lines.push('');
     }

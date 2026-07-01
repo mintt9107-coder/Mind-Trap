@@ -26,6 +26,75 @@ export const createGameChoice = ({
 
   let isEnabled = !disabled;
   let buttons = [];
+  let interactionStartAt = performance.now();
+  let hoverStartedAt = null;
+  let currentHoverChoice = null;
+  let firstHoverChoice = null;
+  let lastHoverChoice = null;
+  let hoverSwitchCount = 0;
+  let hoverDurations = {};
+  let hoveredChoices = new Set();
+
+  const resetInteraction = () => {
+    interactionStartAt = performance.now();
+    hoverStartedAt = null;
+    currentHoverChoice = null;
+    firstHoverChoice = null;
+    lastHoverChoice = null;
+    hoverSwitchCount = 0;
+    hoverDurations = {};
+    hoveredChoices = new Set();
+  };
+
+  const endCurrentHover = () => {
+    if (!currentHoverChoice || hoverStartedAt === null) return;
+    const duration = Math.max(0, performance.now() - hoverStartedAt);
+    hoverDurations[currentHoverChoice] = (hoverDurations[currentHoverChoice] || 0) + duration;
+    hoverStartedAt = null;
+  };
+
+  const startHover = (choice) => {
+    if (!isEnabled) return;
+    if (currentHoverChoice === choice && hoverStartedAt !== null) return;
+    endCurrentHover();
+    if (lastHoverChoice && lastHoverChoice !== choice) {
+      hoverSwitchCount += 1;
+    }
+    currentHoverChoice = choice;
+    hoverStartedAt = performance.now();
+    firstHoverChoice = firstHoverChoice || choice;
+    lastHoverChoice = choice;
+    hoveredChoices.add(choice);
+  };
+
+  const stopHover = (choice) => {
+    if (currentHoverChoice !== choice) return;
+    endCurrentHover();
+    currentHoverChoice = null;
+  };
+
+  const getInteractionSnapshot = (selectedChoice) => {
+    endCurrentHover();
+    const totalHoverMs = Object.values(hoverDurations).reduce((sum, value) => sum + value, 0);
+    const selectedHoverMs = Math.round(hoverDurations[selectedChoice] || 0);
+    const snapshot = {
+      decisionWindowMs: Math.round(performance.now() - interactionStartAt),
+      totalHoverMs: Math.round(totalHoverMs),
+      selectedHoverMs,
+      hoverSwitchCount,
+      hoveredChoiceCount: hoveredChoices.size,
+      firstHoverChoice,
+      lastHoverChoice,
+      changedMindBeforeClick: Boolean(firstHoverChoice && firstHoverChoice !== selectedChoice),
+      selectedAfterHoveringOther: Boolean(
+        hoveredChoices.size > 1 &&
+        (hoverDurations[selectedChoice] || 0) < totalHoverMs * 0.5
+      ),
+    };
+    currentHoverChoice = null;
+    hoverStartedAt = null;
+    return snapshot;
+  };
 
   /**
    * 버튼 생성 헬퍼
@@ -38,9 +107,13 @@ export const createGameChoice = ({
     const btn = createElement('button', {
       className: `game-choice__btn game-choice__btn--${variant}`,
     });
+    btn.addEventListener('pointerenter', () => startHover(key));
+    btn.addEventListener('pointerleave', () => stopHover(key));
+    btn.addEventListener('focus', () => startHover(key));
+    btn.addEventListener('blur', () => stopHover(key));
     btn.addEventListener('click', () => {
       if (!isEnabled) return;
-      onChoice(key);
+      onChoice(key, getInteractionSnapshot(key));
     });
 
     const textEl = createElement('span', {
@@ -64,6 +137,7 @@ export const createGameChoice = ({
    */
   const rebuildButtons = (newButtons) => {
     container.innerHTML = '';
+    resetInteraction();
     buttons = newButtons;
     buttons.forEach((btn) => container.appendChild(btn));
     if (!isEnabled) {
@@ -104,6 +178,7 @@ export const createGameChoice = ({
    */
   const enable = () => {
     isEnabled = true;
+    resetInteraction();
     buttons.forEach((btn) => btn.classList.remove('game-choice__btn--disabled'));
   };
 
@@ -112,6 +187,7 @@ export const createGameChoice = ({
    */
   const disable = () => {
     isEnabled = false;
+    endCurrentHover();
     buttons.forEach((btn) => btn.classList.add('game-choice__btn--disabled'));
   };
 

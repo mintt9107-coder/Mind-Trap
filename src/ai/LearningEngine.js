@@ -76,6 +76,24 @@ export class LearningEngine {
       questionPrompt: roundData.question.prompt,
       timeOut: Boolean(roundData.timeOut),
       actualChoice: roundData.choice,
+      changedChoice: Boolean(roundData.changedChoice),
+      interactionMetrics: roundData.interactionMetrics || {},
+      preChoiceHesitation: features.preChoiceHesitation || 0,
+      concealmentSignal: features.concealmentSignal || 0,
+      hoverSwitchCount: features.hoverSwitchCount || 0,
+      changedMindBeforeClick: Boolean(features.changedMindBeforeClick),
+      selectedAfterHoveringOther: Boolean(features.selectedAfterHoveringOther),
+      twoStage: Boolean(features.twoStage),
+      firstChoice: features.firstChoice,
+      secondThoughtSignal: features.secondThoughtSignal || 0,
+      pressureResponse: features.pressureResponse || 0,
+      reactionTimeDelta: features.reactionTimeDelta || 0,
+      speedShift: features.speedShift,
+      currentChoiceStreak: features.currentChoiceStreak || 0,
+      recentChoiceDiversity: features.recentChoiceDiversity || 0,
+      intentTag: features.intentTag,
+      roundPhase: features.roundPhase,
+      sameQuestionTypeRecently: Boolean(features.sameQuestionTypeRecently),
     });
 
     // 5. 자신감 업데이트 (데이터가 많을수록 자신감 증가)
@@ -144,6 +162,7 @@ export class LearningEngine {
       confidence: this.playerModel.confidence,
       knownPatterns: [...this.playerModel.knownPatterns],
       featureSummary,
+      evidenceStats: this.playerModel.getSnapshot().evidenceStats,
     };
   }
 
@@ -216,6 +235,46 @@ export class LearningEngine {
         type: 'hesitant',
         strength: attrs.hesitation,
         description: '결정을 망설이는 성향',
+      });
+    }
+
+    if (attrs.impulsive > 65) {
+      patterns.push({
+        type: 'impulsive',
+        strength: attrs.impulsive,
+        description: '빠르게 결론을 내리는 성향',
+      });
+    }
+
+    if (attrs.selfCorrection > 65) {
+      patterns.push({
+        type: 'self_correction',
+        strength: attrs.selfCorrection,
+        description: '선택을 다시 검토하는 성향',
+      });
+    }
+
+    if (attrs.exploration > 65) {
+      patterns.push({
+        type: 'exploratory',
+        strength: attrs.exploration,
+        description: '낯선 가능성을 탐색하는 성향',
+      });
+    }
+
+    if (attrs.certaintySeeking > 65) {
+      patterns.push({
+        type: 'certainty_seeking',
+        strength: attrs.certaintySeeking,
+        description: '확실한 근거를 선호하는 성향',
+      });
+    }
+
+    if (attrs.pressureResistance < 35) {
+      patterns.push({
+        type: 'pressure_sensitive',
+        strength: 100 - attrs.pressureResistance,
+        description: '압박 상황에서 흔들리는 성향',
       });
     }
 

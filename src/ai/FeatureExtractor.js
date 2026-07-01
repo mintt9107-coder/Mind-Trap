@@ -17,6 +17,9 @@ export class FeatureExtractor {
 
     /** @type {Array} 이전 반응 시간 기록 */
     this.previousReactionTimes = [];
+
+    /** @type {Array} 이전 질문 유형 기록 */
+    this.previousQuestionTypes = [];
   }
 
   /**
@@ -39,8 +42,19 @@ export class FeatureExtractor {
       changedChoice,
       timeOut,
     } = roundData;
+    const interactionMetrics = roundData.interactionMetrics || {};
 
     const effectiveChoice = timeOut ? 'timeout' : choice;
+    const hoverSwitchCount = interactionMetrics.hoverSwitchCount || 0;
+    const selectedHoverMs = interactionMetrics.selectedHoverMs || 0;
+    const totalHoverMs = interactionMetrics.totalHoverMs || 0;
+    const changedMindBeforeClick = Boolean(interactionMetrics.changedMindBeforeClick);
+    const selectedAfterHoveringOther = Boolean(interactionMetrics.selectedAfterHoveringOther);
+    const validPreviousChoices = this.previousChoices.filter((previousChoice) => previousChoice !== 'timeout');
+    const reactionTimeDelta = this._calculateReactionTimeDelta(reactionTime, timeOut);
+    const speedShift = this._categorizeSpeedShift(reactionTimeDelta, timeOut);
+    const currentChoiceStreak = this._calculateChoiceStreak(effectiveChoice);
+    const recentChoiceDiversity = this._calculateChoiceDiversity(effectiveChoice);
 
     const features = {
       round,
@@ -51,9 +65,25 @@ export class FeatureExtractor {
       choice: effectiveChoice,
       changedChoice: changedChoice ? 1 : 0,
       timeOut: timeOut ? 1 : 0,
+      hoverSwitchCount,
+      selectedHoverMs,
+      totalHoverMs,
+      hoveredChoiceCount: interactionMetrics.hoveredChoiceCount || 0,
+      changedMindBeforeClick: changedMindBeforeClick ? 1 : 0,
+      selectedAfterHoveringOther: selectedAfterHoveringOther ? 1 : 0,
+      twoStage: roundData.twoStage ? 1 : 0,
+      firstChoice: roundData.firstChoice || null,
 
       // 파생 특징들
       hesitationTime: this._calculateHesitationTime(reactionTime, timeOut),
+      preChoiceHesitation: this._calculatePreChoiceHesitation(interactionMetrics, reactionTime, timeOut),
+      concealmentSignal: this._calculateConcealmentSignal(interactionMetrics, reactionTime, effectiveChoice),
+      secondThoughtSignal: this._calculateSecondThoughtSignal(roundData, interactionMetrics),
+      pressureResponse: this._calculatePressureResponse(roundData, interactionMetrics),
+      reactionTimeDelta,
+      speedShift,
+      currentChoiceStreak,
+      recentChoiceDiversity,
       riskChoice: timeOut ? 50 : this._evaluateRiskChoice(question, choice),
       repeatChoice: this._evaluateRepeatChoice(effectiveChoice),
       speedCategory: this._categorizeSpeed(reactionTime, timeOut),
@@ -66,16 +96,22 @@ export class FeatureExtractor {
       // 메타 특징
       questionType: question.type,
       choiceValue: timeOut ? '시간 초과' : this._getChoiceValue(question, choice),
+      intentTag: timeOut ? 'timeout' : this._getIntentTag(question, choice),
+      roundPhase: this._getRoundPhase(round),
+      sameQuestionTypeRecently: this.previousQuestionTypes.includes(question.type) ? 1 : 0,
+      previousValidChoiceCount: validPreviousChoices.length,
     };
 
     // 기록 저장
     this.previousChoices.push(effectiveChoice);
     this.previousReactionTimes.push(reactionTime);
+    this.previousQuestionTypes.push(question.type);
 
     // 최근 5개만 유지
     if (this.previousChoices.length > 5) {
       this.previousChoices.shift();
       this.previousReactionTimes.shift();
+      this.previousQuestionTypes.shift();
     }
 
     return features;
@@ -93,6 +129,92 @@ export class FeatureExtractor {
     
     const normalized = Math.min(100, (reactionTime / GAME_CONFIG.ROUND_TIME_LIMIT) * 100);
     return Math.round(normalized);
+  }
+
+  _calculatePreChoiceHesitation(interactionMetrics, reactionTime, timeOut) {
+    if (timeOut) return 100;
+
+    const totalHoverMs = interactionMetrics.totalHoverMs || 0;
+    const hoverSwitchCount = interactionMetrics.hoverSwitchCount || 0;
+    const changedMind = interactionMetrics.changedMindBeforeClick ? 25 : 0;
+    const hoverScore = Math.min(45, totalHoverMs / 90);
+    const switchScore = Math.min(30, hoverSwitchCount * 12);
+    const timeScore = Math.min(25, reactionTime / 350);
+
+    return Math.round(Math.min(100, hoverScore + switchScore + changedMind + timeScore));
+  }
+
+  _calculateConcealmentSignal(interactionMetrics, reactionTime, effectiveChoice) {
+    if (effectiveChoice === 'timeout') return 30;
+
+    let score = 0;
+    if (reactionTime > 0 && reactionTime < 850) score += 28;
+    if (interactionMetrics.hoverSwitchCount >= 2) score += 24;
+    if (interactionMetrics.changedMindBeforeClick) score += 18;
+    if (interactionMetrics.selectedAfterHoveringOther) score += 18;
+    if ((interactionMetrics.totalHoverMs || 0) < 120 && reactionTime < 1200) score += 12;
+
+    return Math.round(Math.min(100, score));
+  }
+
+  _calculateSecondThoughtSignal(roundData, interactionMetrics) {
+    let score = 0;
+    if (roundData.changedChoice) score += 45;
+    if (roundData.twoStage) score += 20;
+    if (interactionMetrics.changedMindBeforeClick) score += 20;
+    if (interactionMetrics.selectedAfterHoveringOther) score += 15;
+    if ((interactionMetrics.hoverSwitchCount || 0) >= 2) score += 10;
+
+    return Math.round(Math.min(100, score));
+  }
+
+  _calculatePressureResponse(roundData, interactionMetrics) {
+    if (roundData.timeOut) return 85;
+
+    let score = 0;
+    if (roundData.twoStage) score += 20;
+    if (roundData.changedChoice) score += 24;
+    if (roundData.reactionTime > 0 && roundData.reactionTime < 900) score += 22;
+    if (roundData.reactionTime > 3600) score += 18;
+    if ((interactionMetrics.hoverSwitchCount || 0) >= 2) score += 16;
+    if (interactionMetrics.changedMindBeforeClick) score += 12;
+
+    return Math.round(Math.min(100, score));
+  }
+
+  _calculateReactionTimeDelta(reactionTime, timeOut) {
+    if (timeOut || !reactionTime || this.previousReactionTimes.length === 0) return 0;
+
+    const validTimes = this.previousReactionTimes.filter((time) => time > 0 && time < GAME_CONFIG.ROUND_TIME_LIMIT);
+    if (validTimes.length === 0) return 0;
+
+    const avg = validTimes.reduce((sum, time) => sum + time, 0) / validTimes.length;
+    return Math.round(reactionTime - avg);
+  }
+
+  _categorizeSpeedShift(reactionTimeDelta, timeOut) {
+    if (timeOut) return 'timeout';
+    if (reactionTimeDelta <= -800) return 'faster';
+    if (reactionTimeDelta >= 800) return 'slower';
+    return 'stable';
+  }
+
+  _calculateChoiceStreak(currentChoice) {
+    if (currentChoice === 'timeout') return 0;
+
+    let streak = 1;
+    for (let index = this.previousChoices.length - 1; index >= 0; index--) {
+      if (this.previousChoices[index] !== currentChoice) break;
+      streak += 1;
+    }
+    return streak;
+  }
+
+  _calculateChoiceDiversity(currentChoice) {
+    const window = [...this.previousChoices, currentChoice].filter((choice) => choice !== 'timeout').slice(-6);
+    if (window.length === 0) return 0;
+
+    return Math.round((new Set(window).size / window.length) * 100);
   }
 
   /**
@@ -214,6 +336,39 @@ export class FeatureExtractor {
     return question.choices?.[choice] || choice;
   }
 
+  _getIntentTag(question, choice) {
+    const type = question.type;
+    const isPrimary = choice === 'primary' || choice === 'A';
+    const map = {
+      [QUESTION_TYPES.RISK]: isPrimary ? 'opportunity' : 'loss_control',
+      [QUESTION_TYPES.COMBAT]: isPrimary ? 'confrontation' : 'observation',
+      [QUESTION_TYPES.REWARD]: isPrimary ? 'growth_reward' : 'secure_reward',
+      [QUESTION_TYPES.TIME]: isPrimary ? 'wait_for_certainty' : 'act_now',
+      [QUESTION_TYPES.EMOTION]: isPrimary ? 'accept_external_signal' : 'guard_boundary',
+      [QUESTION_TYPES.SPEED]: isPrimary ? 'intuition' : 'deliberation',
+      [QUESTION_TYPES.DIRECTION]: isPrimary ? 'novel_path' : 'familiar_path',
+      [QUESTION_TYPES.TEMPTATION]: this._getTemptationIntent(choice),
+    };
+
+    return map[type] || choice;
+  }
+
+  _getTemptationIntent(choice) {
+    const map = {
+      A: 'first_signal',
+      B: 'social_proof',
+      C: 'authority_evidence',
+      D: 'inner_signal',
+    };
+    return map[choice] || 'unknown_signal';
+  }
+
+  _getRoundPhase(round) {
+    if (round <= Math.ceil(GAME_CONFIG.TOTAL_ROUNDS * 0.3)) return 'early';
+    if (round <= Math.ceil(GAME_CONFIG.TOTAL_ROUNDS * 0.7)) return 'mid';
+    return 'late';
+  }
+
   /**
    * 여러 라운드 특징 추출
    * @param {Array} roundDataList - 라운드 데이터 배열
@@ -234,11 +389,23 @@ export class FeatureExtractor {
         totalRounds: 0,
         avgReactionTime: 0,
         avgHesitation: 0,
+        avgPreChoiceHesitation: 0,
+        avgConcealmentSignal: 0,
+        avgSecondThoughtSignal: 0,
+        avgPressureResponse: 0,
+        avgChoiceDiversity: 0,
         avgRisk: 0,
         repeatCount: 0,
         timeoutCount: 0,
+        changedChoiceCount: 0,
+        twoStageCount: 0,
+        twoStageChangedCount: 0,
         speedDistribution: { fast: 0, normal: 0, slow: 0, timeout: 0 },
+        speedShiftDistribution: { faster: 0, stable: 0, slower: 0, timeout: 0 },
         choiceDistribution: {},
+        questionTypeDistribution: {},
+        intentDistribution: {},
+        phaseDistribution: { early: 0, mid: 0, late: 0 },
       };
     }
 
@@ -246,29 +413,62 @@ export class FeatureExtractor {
       totalRounds: features.length,
       avgReactionTime: 0,
       avgHesitation: 0,
+      avgPreChoiceHesitation: 0,
+      avgConcealmentSignal: 0,
+      avgSecondThoughtSignal: 0,
+      avgPressureResponse: 0,
+      avgChoiceDiversity: 0,
       avgRisk: 0,
       repeatCount: 0,
       timeoutCount: 0,
+      changedChoiceCount: 0,
+      twoStageCount: 0,
+      twoStageChangedCount: 0,
       speedDistribution: { fast: 0, normal: 0, slow: 0, timeout: 0 },
+      speedShiftDistribution: { faster: 0, stable: 0, slower: 0, timeout: 0 },
       choiceDistribution: {},
+      questionTypeDistribution: {},
+      intentDistribution: {},
+      phaseDistribution: { early: 0, mid: 0, late: 0 },
     };
 
     const clickedFeatures = features.filter((f) => !f.timeOut && f.reactionTime > 0);
 
     features.forEach((f) => {
       summary.avgHesitation += f.hesitationTime;
+      summary.avgPreChoiceHesitation += f.preChoiceHesitation || 0;
+      summary.avgConcealmentSignal += f.concealmentSignal || 0;
+      summary.avgSecondThoughtSignal += f.secondThoughtSignal || 0;
+      summary.avgPressureResponse += f.pressureResponse || 0;
+      summary.avgChoiceDiversity += f.recentChoiceDiversity || 0;
       summary.avgRisk += f.riskChoice;
       summary.repeatCount += f.repeatChoice === 100 ? 1 : 0;
       summary.timeoutCount += f.timeOut;
+      summary.changedChoiceCount += f.changedChoice || 0;
+      summary.twoStageCount += f.twoStage || 0;
+      summary.twoStageChangedCount += f.twoStage && f.changedChoice ? 1 : 0;
       summary.speedDistribution[f.speedCategory]++;
+      summary.speedShiftDistribution[f.speedShift] =
+        (summary.speedShiftDistribution[f.speedShift] || 0) + 1;
       summary.choiceDistribution[f.choice] =
         (summary.choiceDistribution[f.choice] || 0) + 1;
+      summary.questionTypeDistribution[f.questionType] =
+        (summary.questionTypeDistribution[f.questionType] || 0) + 1;
+      summary.intentDistribution[f.intentTag] =
+        (summary.intentDistribution[f.intentTag] || 0) + 1;
+      summary.phaseDistribution[f.roundPhase] =
+        (summary.phaseDistribution[f.roundPhase] || 0) + 1;
     });
 
     summary.avgReactionTime = clickedFeatures.length > 0
       ? clickedFeatures.reduce((sum, f) => sum + f.reactionTime, 0) / clickedFeatures.length
       : 0;
     summary.avgHesitation /= features.length;
+    summary.avgPreChoiceHesitation = Math.round(summary.avgPreChoiceHesitation / features.length);
+    summary.avgConcealmentSignal = Math.round(summary.avgConcealmentSignal / features.length);
+    summary.avgSecondThoughtSignal = Math.round(summary.avgSecondThoughtSignal / features.length);
+    summary.avgPressureResponse = Math.round(summary.avgPressureResponse / features.length);
+    summary.avgChoiceDiversity = Math.round(summary.avgChoiceDiversity / features.length);
     summary.avgRisk /= features.length;
 
     return summary;
@@ -280,5 +480,6 @@ export class FeatureExtractor {
   reset() {
     this.previousChoices = [];
     this.previousReactionTimes = [];
+    this.previousQuestionTypes = [];
   }
 }
